@@ -4,15 +4,30 @@ import os
 import random
 
 from constants import MESSAGES
+from exceptions import NotFound
+from utils import (
+    get_by_id,
+    get_random_catgirl,
+    media_has_been_sent,
+    upload_media,
+)
 
 logging.basicConfig(level=logging.INFO)
 
+NOT_FOUND_MAX_RETRIES = 5
+
 
 class Izsak:
-    def __init__(self, discord_token=os.environ.get("IZSAK_DISCORD_TOKEN"), guild_id=os.environ.get("GUILD_ID")):
+    def __init__(
+            self,
+            discord_token=os.environ.get("IZSAK_DISCORD_TOKEN"),
+            guild_id=os.environ.get("IZSAK_GUILD_ID"),
+            can_dm=os.environ.get("IZSAK_CAN_DM"),
+    ):
         self.client = discord.Client()
         self.token = discord_token
         self.guild_id = int(guild_id)
+        self.can_dm = can_dm.split(",")
 
     def start(self):
         self.client.run(self.token)
@@ -21,7 +36,12 @@ class Izsak:
         return self.client.get_guild(self.guild_id)
 
     async def handle_message(self, message):
-        if message.author == self.client.user:
+        if message.channel.type == discord.ChannelType.private and str(message.author.id) in self.can_dm:
+            await self._parse_args(message)
+            return
+
+        if message.channel.type != discord.ChannelType.private \
+                and (message.author == self.client.user or message.guild.id != self.guild_id):
             return
 
         await self._parse_args(message)
@@ -34,12 +54,50 @@ class Izsak:
         for msg in wtf_msgs:
             await channel.send(msg)
 
-    async def love(self, channel, user):
+    async def love(self, channel):
         love_choice = random.choice(MESSAGES.get("love", ["ok"]))
         if love_choice[0] == ":":
             love_choice = self._get_emoji(love_choice.replace(":", ""))
 
         await channel.send(f"{love_choice}")
+
+    async def catgirl(self, channel, id=None):
+        catgirl = None
+        attempts = 0
+        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
+            try:
+                catgirl = get_random_catgirl() if not id else get_by_id(id)
+            except NotFound as e:
+                print(str(e))
+            finally:
+                attempts += 1
+
+        if catgirl:
+            image = catgirl.get('url')
+            if catgirl.get('nsfw'):
+                image = f"<||{image}||>"
+
+            print(f"Sending {image} to {channel.id}...")
+            await channel.send(image)
+            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+
+            if id:
+                media_has_been_sent(id)
+        else:
+            await channel.send(
+                f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}, if this persists ping grotto"
+            )
+
+    # TODO: sanitize input
+    async def upload(self, channel, args):
+        if channel.type != discord.ChannelType.private:
+            return
+
+        try:
+            upload_media(args)
+            await channel.send("Upload successful!")
+        except Exception as e:
+            await channel.send(f"Exception occurred: `{str(e)}`")
 
     async def _parse_args(self, message):
         args = message.content.split(" ")
@@ -48,7 +106,14 @@ class Izsak:
             await self.wtf(message.channel, args)
         elif args[0] == "!izsak":
             if " ".join(args[1:]).lower() == "i love you":
-                await self.love(message.channel, message.author.id)
+                await self.love(message.channel)
+            elif args[1] == "upload":
+                args.append(message.author.name)
+                await self.upload(message.channel, args[2:])
+            elif args[1] == "source":
+                await message.channel.send("https://github.com/grahamhub/izsak")
+            elif args[1] == "catgirl":
+                await self.catgirl(message.channel)
 
     def _get_mentionable_role(self, name):
         guild = self.guild()
