@@ -3,18 +3,20 @@ import logging
 import os
 import random
 
-from constants import MESSAGES
+from constants import (
+    AUTO_SEND_CHANNEL,
+    MESSAGES,
+    NOT_FOUND_MAX_RETRIES,
+)
 from exceptions import NotFound
 from utils import (
-    get_by_id,
+    get_unsent_catgirl,
     get_random_catgirl,
     media_has_been_sent,
     upload_media,
 )
 
 logging.basicConfig(level=logging.INFO)
-
-NOT_FOUND_MAX_RETRIES = 5
 
 
 class Izsak:
@@ -34,6 +36,9 @@ class Izsak:
 
     def guild(self):
         return self.client.get_guild(self.guild_id)
+
+    def auto_send_channel(self):
+        return self.guild().get_channel(AUTO_SEND_CHANNEL)
 
     async def handle_message(self, message):
         if message.channel.type == discord.ChannelType.private and str(message.author.id) in self.can_dm:
@@ -61,12 +66,12 @@ class Izsak:
 
         await channel.send(f"{love_choice}")
 
-    async def catgirl(self, channel, id=None):
+    async def catgirl(self, channel, sent_ok=True):
         catgirl = None
         attempts = 0
         while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
             try:
-                catgirl = get_random_catgirl() if not id else get_by_id(id)
+                catgirl = get_random_catgirl(has_been_sent_ok=sent_ok)
             except NotFound as e:
                 print(str(e))
             finally:
@@ -81,11 +86,39 @@ class Izsak:
             await channel.send(image)
             await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
 
-            if id:
+            if not sent_ok:
                 media_has_been_sent(id)
         else:
             await channel.send(
                 f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}, if this persists ping grotto"
+            )
+
+    async def send_random_catgirl(self):
+        catgirl = None
+        attempts = 0
+        channel = self.auto_send_channel()
+        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
+            try:
+                catgirl = get_unsent_catgirl()
+            except NotFound as e:
+                print(str(e))
+            finally:
+                attempts += 1
+
+        if catgirl:
+            image = catgirl.get("url")
+            if catgirl.get("nsfw"):
+                image = f"<||{image}||>"
+
+            print(f"Sending {image} to {channel.id}...")
+            await channel.send(image)
+            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+            media_has_been_sent(catgirl.get('id'))
+        else:
+            await channel.send(
+                (f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}\nThis "
+                 f"probably means the database needs to be updated. In the meantime, you can "
+                 f"manually run `!izsak catgirl` to get your fix.")
             )
 
     # TODO: sanitize input

@@ -102,8 +102,8 @@ class Postgres:
         return self._fetchone()
 
     def update_field(self, table, field_name, new_val, id):
-        stmt = f"UPDATE {table} SET %s = %s WHERE id = %s;"
-        self._execute(stmt, [field_name, new_val, id])
+        stmt = f"UPDATE {table} SET {field_name} = %s WHERE id = %s;"
+        self._execute(stmt, [new_val, id])
         return self.get_by_id(table, id)
 
     def select(self, table, where):
@@ -136,6 +136,20 @@ class Postgres:
             self._table_cols_lookup(table),
             list(item),
         )
+
+    def get_all_by_attr(self, table, attr, val):
+        stmt = f"SELECT * FROM {table} WHERE {attr} = %s;"
+        self._execute(stmt, [val])
+        items = self._fetchall()
+        if items is None:
+            raise NotFound(f"no items matching {attr} = {val}")
+
+        return [
+            self._create_dict(
+                self._table_cols_lookup(table),
+                item,
+            ) for item in items
+        ]
 
 
 @contextlib.contextmanager

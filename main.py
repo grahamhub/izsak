@@ -1,3 +1,4 @@
+from discord.ext import tasks
 from izsak import Izsak
 
 izsak = Izsak()
@@ -14,4 +15,14 @@ async def on_ready():
 async def on_message(message):
     await izsak.handle_message(message)
 
+
+@tasks.loop(hours=12)
+async def send_random_catgirl():
+    try:
+        await izsak.send_random_catgirl()
+    except AttributeError as e:
+        print(str(e))
+
+
+send_random_catgirl.start()
 izsak.start()

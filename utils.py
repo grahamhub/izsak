@@ -28,7 +28,6 @@ def get_random_catgirl(has_been_sent_ok=False):
             item = postgres.select("media", f"id = {row_id} AND category = 'catgirl';")
         else:
             item = postgres.select("media", f"id = {row_id} AND category = 'catgirl' AND NOT has_been_sent;")
-            print(item)
 
     return item
 
@@ -57,5 +56,14 @@ def get_by_id(id):
     item = None
     with connection() as postgres:
         item = postgres.get_by_id("media", id)
+
+    return item
+
+
+def get_unsent_catgirl():
+    item = None
+    with connection() as postgres:
+        catgirls = postgres.get_all_by_attr("media", "has_been_sent", False)
+        item = choice(catgirls)
 
     return item

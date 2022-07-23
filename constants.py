@@ -1,3 +1,5 @@
+import os
+
 MESSAGES = {
     "wtf": [
         "I'm sorry not sorry but......What The Fuck Did you Just Say?",
@@ -21,3 +23,7 @@ MESSAGES = {
         "ok",
     ],
 }
+
+NOT_FOUND_MAX_RETRIES = 5
+
+AUTO_SEND_CHANNEL = int(os.environ.get("IZSAK_AUTO_SEND_CHANNEL", "-1"))
