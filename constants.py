@@ -25,5 +25,6 @@ MESSAGES = {
 }
 
 NOT_FOUND_MAX_RETRIES = 5
+NOT_FOUND_MSG = "Sorry, I couldn't find a media item for that category."
 
 AUTO_SEND_CHANNEL = int(os.environ.get("IZSAK_AUTO_SEND_CHANNEL", "-1"))

@@ -7,11 +7,13 @@ from constants import (
     AUTO_SEND_CHANNEL,
     MESSAGES,
     NOT_FOUND_MAX_RETRIES,
+    NOT_FOUND_MSG,
 )
 from exceptions import NotFound
 from utils import (
     get_unsent_catgirl,
     get_random_catgirl,
+    get_random_by_category,
     media_has_been_sent,
     upload_media,
 )
@@ -147,6 +149,15 @@ class Izsak:
                 await message.channel.send("https://github.com/grahamhub/izsak")
             elif args[1] == "catgirl":
                 await self.catgirl(message.channel)
+            elif args[1] == "media":
+                item = self._parse_media(args[2])
+                image = item.get("image", False)
+                if image:
+                    await message.channel.send(image)
+                    await message.channel.send(item.get("artist"))
+                else:
+                    await message.channel.send(NOT_FOUND_MSG)
+
 
     def _get_mentionable_role(self, name):
         guild = self.guild()
@@ -160,3 +171,18 @@ class Izsak:
     def _get_emoji(self, name):
         emoji = discord.utils.get(self.guild().emojis, name=name)
         return f"<:{name}:{emoji.id}>"
+
+    def _parse_media(self, category):
+        item = get_random_by_category(category)
+        if item is None:
+            return {}
+
+        image = item.get("url")
+
+        if item.get("nsfw"):
+            image = f"||{image}||"
+
+        return {
+            "image": image,
+            "artist": f"Artist: {item.get('author', 'Unknown')}",
+        }

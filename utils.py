@@ -13,6 +13,14 @@ def get_random_media_item():
     return item
 
 
+def get_random_by_category(category):
+    item = None
+    with connection() as postgres:
+        items = postgres.get_all_by_attr("media", "category", category)
+        item = choice(items)
+
+    return item
+
 def get_random_catgirl(has_been_sent_ok=False):
     item = None
     with connection() as postgres:
