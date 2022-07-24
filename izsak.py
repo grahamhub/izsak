@@ -167,7 +167,7 @@ class Izsak:
                     msgs[i].content = fixed
                 print("Processing batch, this may take a few minutes...")
                 await self.process_batch(msgs)
-                dm = await self._get_dm_channel(self.can_dm[0])
+                dm = await self._get_dm_channel(int(self.can_dm[1]))
                 await dm.send("Done processing %s messages" % len(msgs))
 
 
@@ -216,5 +216,6 @@ class Izsak:
 
     async def process_batch(self, msgs):
         for msg in msgs:
+            print(f"Processing `{msg.content}`...")
             await self._parse_args(msg, silent=True)
             sleep(1)
