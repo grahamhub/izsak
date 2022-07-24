@@ -126,15 +126,17 @@ class Izsak:
             )
 
     # TODO: sanitize input
-    async def upload(self, channel, args):
+    async def upload(self, channel, args, silent=False):
         if channel.type != discord.ChannelType.private:
             return
 
         try:
             upload_media(args)
-            await channel.send("Upload successful!")
+            if not silent:
+                await channel.send("Upload successful!")
         except Exception as e:
-            await channel.send(f"Exception occurred: `{str(e)}`")
+            if not silent:
+                await channel.send(f"Exception occurred: `{str(e)}`")
 
     async def _parse_args(self, message, silent=False):
         args = message.content.split(" ")
@@ -146,8 +148,7 @@ class Izsak:
                 await self.love(message.channel)
             elif args[1] == "upload":
                 args.append(message.author.name)
-                if not silent:
-                    await self.upload(message.channel, args[2:])
+                await self.upload(message.channel, args[2:], silent=silent)
             elif args[1] == "source":
                 await message.channel.send("https://github.com/grahamhub/izsak")
             elif args[1] == "catgirl":
