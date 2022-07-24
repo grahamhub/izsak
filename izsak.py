@@ -168,8 +168,6 @@ class Izsak:
                     msgs[i].content = fixed
                 print("Processing batch, this may take a few minutes...")
                 await self.process_batch(msgs)
-                dm = await self._get_dm_channel(int(self.can_dm[1]))
-                await dm.send("Done processing %s messages" % len(msgs))
 
     def _get_mentionable_role(self, name):
         guild = self.guild()
@@ -206,15 +204,21 @@ class Izsak:
 
     async def _get_all_messages(self, channel):
         msgs = []
+        needle = "https://twitter.com/Margikrap/status/1476025036364464140?s=20&t=7_xqQJOM3anRQc2L3jF7LA"
+        found = False
         if channel:
-            async for message in channel.history():
+            async for message in channel.history(oldest_first=True):
                 if message.author != self.client.user:
-                    if "upload" in message.content and "<" in message.content:
+                    if "upload" in message.content and "<" in message.content and found:
+                        print(message.content)
                         msgs.append(message)
+                    if needle in message.content and "<" in message.content:
+                        found = True
         return msgs
 
     async def process_batch(self, msgs):
         for msg in msgs:
             print(f"Processing `{msg.content}`...")
+            await msg.channel.send(f"Processing `{msg.content}`...")
             await self._parse_args(msg, silent=True)
             sleep(1)
