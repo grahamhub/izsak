@@ -170,7 +170,6 @@ class Izsak:
                 dm = await self._get_dm_channel(int(self.can_dm[1]))
                 await dm.send("Done processing %s messages" % len(msgs))
 
-
     def _get_mentionable_role(self, name):
         guild = self.guild()
         print(guild)
