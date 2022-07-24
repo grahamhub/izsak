@@ -21,6 +21,7 @@ def get_random_by_category(category):
 
     return item
 
+
 def get_random_catgirl(has_been_sent_ok=False):
     item = None
     with connection() as postgres:
@@ -75,3 +76,13 @@ def get_unsent_catgirl():
         item = choice(catgirls)
 
     return item
+
+
+def parse_invalid_message(msg):
+    msg = msg.replace("<", "")
+    msg = msg.replace(">", "")
+    msg_sp = msg.split(" ")
+    del msg_sp[2]  # link:
+    del msg_sp[3]  # artist:
+    del msg_sp[5]  # nsfw:
+    return ' '.join(msg_sp)

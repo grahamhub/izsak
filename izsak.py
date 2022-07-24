@@ -10,11 +10,13 @@ from constants import (
     NOT_FOUND_MSG,
 )
 from exceptions import NotFound
+from time import sleep
 from utils import (
     get_unsent_catgirl,
     get_random_catgirl,
     get_random_by_category,
     media_has_been_sent,
+    parse_invalid_message,
     upload_media,
 )
 
@@ -134,7 +136,7 @@ class Izsak:
         except Exception as e:
             await channel.send(f"Exception occurred: `{str(e)}`")
 
-    async def _parse_args(self, message):
+    async def _parse_args(self, message, silent=False):
         args = message.content.split(" ")
 
         if args[0] == "!wtf":
@@ -144,7 +146,8 @@ class Izsak:
                 await self.love(message.channel)
             elif args[1] == "upload":
                 args.append(message.author.name)
-                await self.upload(message.channel, args[2:])
+                if not silent:
+                    await self.upload(message.channel, args[2:])
             elif args[1] == "source":
                 await message.channel.send("https://github.com/grahamhub/izsak")
             elif args[1] == "catgirl":
@@ -157,6 +160,15 @@ class Izsak:
                     await message.channel.send(item.get("artist"))
                 else:
                     await message.channel.send(NOT_FOUND_MSG)
+            elif args[1] == "fix":
+                msgs = await self._get_all_messages()
+                for i in range(len(msgs)):
+                    fixed = parse_invalid_message(msgs[i].content)
+                    msgs[i].content = fixed
+                print("Processing batch, this may take a few minutes...")
+                await self.process_batch(msgs)
+                dm = await self._get_dm_channel(self.can_dm[0])
+                await dm.send("Done processing %s messages" % len(msgs))
 
 
     def _get_mentionable_role(self, name):
@@ -186,3 +198,23 @@ class Izsak:
             "image": image,
             "artist": f"Artist: {item.get('author', 'Unknown')}",
         }
+
+    # TODO: remove these once kaki's messages are fixed
+    async def _get_dm_channel(self, id):
+        user = await self.client.fetch_user(id)
+        return user.dm_channel
+
+    async def _get_all_messages(self):
+        msgs = []
+        channel = await self._get_dm_channel(int(self.can_dm[0]))
+        if channel:
+            async for message in channel.history():
+                if message.author != self.client.user:
+                    if "upload" in message.content and "<" in message.content:
+                        msgs.append(message)
+        return msgs
+
+    async def process_batch(self, msgs):
+        for msg in msgs:
+            await self._parse_args(msg, silent=True)
+            sleep(1)
