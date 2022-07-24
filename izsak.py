@@ -161,7 +161,7 @@ class Izsak:
                 else:
                     await message.channel.send(NOT_FOUND_MSG)
             elif args[1] == "fix":
-                msgs = await self._get_all_messages()
+                msgs = await self._get_all_messages(message.channel)
                 for i in range(len(msgs)):
                     fixed = parse_invalid_message(msgs[i].content)
                     msgs[i].content = fixed
@@ -204,9 +204,8 @@ class Izsak:
         user = await self.client.fetch_user(id)
         return user.dm_channel
 
-    async def _get_all_messages(self):
+    async def _get_all_messages(self, channel):
         msgs = []
-        channel = await self._get_dm_channel(int(self.can_dm[0]))
         if channel:
             async for message in channel.history():
                 if message.author != self.client.user:
