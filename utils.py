@@ -1,58 +1,52 @@
+import os
+
+from discord import (
+    ui,
+    Interaction,
+)
+
+import izsak
 from postgres import connection
 from random import choice
-from exceptions import NotFound
 
 
-def get_random_media_item():
-    item = None
-    with connection() as postgres:
-        row_length = int(postgres.get_row_count("media")[0])
-        row_id = choice(range(1, row_length))
-        item = postgres.get_by_id("media", row_id)
+class UploadModal(ui.Modal):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
-    return item
+        self.add_item(ui.InputText(label="URL"))
+        self.add_item(ui.InputText(label="Artist"))
+        self.add_item(ui.InputText(label="Category"))
+        self.add_item(ui.InputText(label="NSFW"))
+
+    async def callback(self, interaction: Interaction):
+        await izsak.Izsak.upload(
+            interaction,
+            *map(lambda x: x.value, self.children)
+        )
 
 
-def get_random_by_category(category):
+def get_random_by_category(category, filter_key=None, filter_val=None):
     item = None
     with connection() as postgres:
         items = postgres.get_all_by_attr("media", "category", category)
-        item = choice(items)
+        if filter_key:
+            items = filter_db_row(items, filter_key, filter_val)
+
+        try:
+            item = choice(items)
+        except IndexError:
+            pass
 
     return item
 
 
-def get_random_catgirl(has_been_sent_ok=False):
-    item = None
-    with connection() as postgres:
-        row_length = int(postgres.get_row_count("media")[0])
-        if row_length > 1:
-            row_id = choice(range(1, row_length))
-        elif row_length == 0:
-            raise NotFound("there are no images in the media table")
-        else:
-            row_id = 1
-
-        if has_been_sent_ok:
-            item = postgres.select("media", f"id = {row_id} AND category = 'catgirl';")
-        else:
-            item = postgres.select("media", f"id = {row_id} AND category = 'catgirl' AND NOT has_been_sent;")
-
-    return item
-
-
-def upload_media(args):
+def upload_media(**kwargs):
     with connection() as postgres:
         postgres.insert(
             "media",
-            [
-                "url",
-                "author",
-                "category",
-                "nsfw",
-                "submitted_by",
-            ],
-            args
+            list(kwargs.keys()),
+            list(kwargs.values()),
         )
 
 
@@ -69,20 +63,19 @@ def get_by_id(id):
     return item
 
 
-def get_unsent_catgirl():
-    item = None
-    with connection() as postgres:
-        catgirls = postgres.get_all_by_attr("media", "has_been_sent", False)
-        item = choice(catgirls)
-
-    return item
+def can_upload(ctx):
+    upload_users = os.environ.get("IZSAK_CAN_UPLOAD", "").split(",")
+    upload_users = list(map(lambda id: int(id), upload_users))
+    return ctx.user.id in upload_users
 
 
-def parse_invalid_message(msg):
-    msg = msg.replace("<", "")
-    msg = msg.replace(">", "")
-    msg_sp = msg.split(" ")
-    del msg_sp[2]  # link:
-    del msg_sp[3]  # artist:
-    del msg_sp[5]  # nsfw:
-    return ' '.join(msg_sp)
+def filter_db_row(row, key, val=None):
+    filtered_items = []
+    for item in row:
+        needle = item.get(key, False)
+        if needle and needle == val:
+            filtered_items.append(item)
+        elif needle and not val:
+            filtered_items.append(item)
+
+    return filtered_items

@@ -1,26 +1,20 @@
 import discord
-import logging
 import os
 import random
 
 from constants import (
     AUTO_SEND_CHANNEL,
     MESSAGES,
-    NOT_FOUND_MAX_RETRIES,
     NOT_FOUND_MSG,
 )
-from exceptions import NotFound
-from time import sleep
+from discord import ApplicationContext
 from utils import (
-    get_unsent_catgirl,
-    get_random_catgirl,
+    filter_db_row,
     get_random_by_category,
     media_has_been_sent,
-    parse_invalid_message,
     upload_media,
+    UploadModal,
 )
-
-logging.basicConfig(level=logging.INFO)
 
 
 class Izsak:
@@ -28,12 +22,36 @@ class Izsak:
             self,
             discord_token=os.environ.get("IZSAK_DISCORD_TOKEN"),
             guild_id=os.environ.get("IZSAK_GUILD_ID"),
-            can_dm=os.environ.get("IZSAK_CAN_DM"),
+            can_upload=os.environ.get("IZSAK_CAN_UPLOAD"),
     ):
-        self.client = discord.Client()
+        self.client = discord.Bot()
         self.token = discord_token
         self.guild_id = int(guild_id)
-        self.can_dm = can_dm.split(",")
+        self.can_upload = can_upload.split(",")
+
+    @staticmethod
+    async def forbidden(ctx: ApplicationContext):
+        await ctx.respond("You are not allowed to execute this command.")
+
+    @staticmethod
+    async def upload_modal(ctx: ApplicationContext):
+        modal = UploadModal(title="Upload a new media item")
+        await ctx.send_modal(modal)
+
+    # TODO: sanitize input
+    @staticmethod
+    async def upload(interaction: discord.Interaction, *args):
+        try:
+            upload_media(
+                url=args[0],
+                author=args[1],
+                category=args[2],
+                nsfw=args[3],
+                submitted_by=interaction.user.name,
+            )
+            await interaction.response.send_message("Upload successful!")
+        except Exception as e:
+            await interaction.response.send_message(f"Exception occurred: `{str(e)}`")
 
     def start(self):
         self.client.run(self.token)
@@ -44,134 +62,66 @@ class Izsak:
     def auto_send_channel(self):
         return self.guild().get_channel(AUTO_SEND_CHANNEL)
 
-    async def handle_message(self, message):
-        if message.channel.type == discord.ChannelType.private and str(message.author.id) in self.can_dm:
-            await self._parse_args(message)
-            return
-
-        if message.channel.type != discord.ChannelType.private \
-                and (message.author == self.client.user or message.guild.id != self.guild_id):
-            return
-
-        await self._parse_args(message)
-
-    async def wtf(self, channel, args):
+    async def wtf(self, ctx: ApplicationContext, role):
         wtf_msgs = MESSAGES.get("wtf")
-        role = self._get_mentionable_role(" ".join(args[1:]))
+        role = self._get_mentionable_role(role)
         wtf_msgs[2] = wtf_msgs[2].format(replace_with=role)
 
-        for msg in wtf_msgs:
-            await channel.send(msg)
+        await ctx.respond(wtf_msgs[0])
+        for msg in wtf_msgs[1:]:
+            await ctx.send(msg)
 
-    async def love(self, channel):
+    async def love(self, ctx: ApplicationContext):
         love_choice = random.choice(MESSAGES.get("love", ["ok"]))
         if love_choice[0] == ":":
-            love_choice = self._get_emoji(love_choice.replace(":", ""))
-
-        await channel.send(f"{love_choice}")
-
-    async def catgirl(self, channel, sent_ok=True):
-        catgirl = None
-        attempts = 0
-        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
             try:
-                catgirl = get_random_catgirl(has_been_sent_ok=sent_ok)
-            except NotFound as e:
-                print(str(e))
-            finally:
-                attempts += 1
+                love_choice = self._get_emoji(love_choice.replace(":", ""))
+            except AttributeError as e:
+                love_choice = "tch.."
 
-        if catgirl:
-            image = catgirl.get('url')
-            if catgirl.get('nsfw'):
-                image = f"<||{image}||>"
+        await ctx.respond(f"{love_choice}")
 
-            print(f"Sending {image} to {channel.id}...")
-            await channel.send(image)
-            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+    async def send_random_catgirl(self, ctx: ApplicationContext, sent_before=True):
+        catgirl = get_random_by_category("catgirl")
+        image = catgirl.get("url")
+        if catgirl.get("nsfw"):
+            image = f"||{image}||"
 
-            if not sent_ok:
-                media_has_been_sent(id)
-        else:
-            await channel.send(
-                f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}, if this persists ping grotto"
-            )
+        print(f"Sending {image} to {ctx.channel.id}...")
+        await ctx.respond(image)
+        await ctx.send(f"Artist: {catgirl.get('author', 'Unknown')}")
 
-    async def send_random_catgirl(self):
-        catgirl = None
-        attempts = 0
+    async def send_scheduled_catgirl(self):
+        catgirl = get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
         channel = self.auto_send_channel()
-        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
-            try:
-                catgirl = get_unsent_catgirl()
-            except NotFound as e:
-                print(str(e))
-            finally:
-                attempts += 1
-
-        if catgirl:
-            image = catgirl.get("url")
-            if catgirl.get("nsfw"):
-                image = f"<||{image}||>"
-
-            print(f"Sending {image} to {channel.id}...")
-            await channel.send(image)
-            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
-            media_has_been_sent(catgirl.get('id'))
-        else:
+        if not catgirl:
             await channel.send(
                 (f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}\nThis "
                  f"probably means the database needs to be updated. In the meantime, you can "
-                 f"manually run `!izsak catgirl` to get your fix.")
+                 f"manually run `/catgirl` to get your fix.")
             )
+        else:
+            image = catgirl.get("url")
+            if catgirl.get("nsfw"):
+                image = f"||{image}||"
 
-    # TODO: sanitize input
-    async def upload(self, channel, args, silent=False):
-        if channel.type != discord.ChannelType.private:
-            return
+            print(f"Sending {image} to {channel.id}...")
+            await channel.send(image)
+            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
 
-        try:
-            upload_media(args)
-            if not silent:
-                await channel.send("Upload successful!")
-        except Exception as e:
-            if not silent:
-                await channel.send(f"Exception occurred: `{str(e)}`")
+            media_has_been_sent(catgirl.get('id'))
 
-    async def _parse_args(self, message, silent=False):
-        args = message.content.split(" ")
-
-        if args[0] == "!wtf":
-            await self.wtf(message.channel, args)
-        elif args[0] == "!izsak":
-            if " ".join(args[1:]).lower() == "i love you":
-                await self.love(message.channel)
-            elif args[1] == "upload":
-                args.append(message.author.name)
-                await self.upload(message.channel, args[2:], silent=silent)
-            elif args[1] == "source":
-                await message.channel.send("https://github.com/grahamhub/izsak")
-            elif args[1] == "catgirl":
-                await self.catgirl(message.channel)
-            elif args[1] == "media":
-                item = self._parse_media(args[2])
-                image = item.get("image", False)
-                if image:
-                    await message.channel.send(image)
-                    await message.channel.send(item.get("artist"))
-                else:
-                    await message.channel.send(NOT_FOUND_MSG)
-            elif args[1] == "fix":
-                msgs = await self._get_all_messages(message.channel)
-                for i in range(len(msgs)):
-                    fixed = parse_invalid_message(msgs[i].content)
-                    msgs[i].content = fixed
-                print("Processing batch, this may take a few minutes...")
-                await self.process_batch(msgs)
+    async def send_media_by_category(self, ctx: ApplicationContext, category):
+        item = self._parse_media(category)
+        image = item.get("image", False)
+        if image:
+            await ctx.respond(image)
+            await ctx.send(item.get("artist"))
+        else:
+            await ctx.respond(NOT_FOUND_MSG)
 
     def _get_mentionable_role(self, name):
         guild = self.guild()
-        print(guild)
         role = discord.utils.get(guild.roles, name=name)
         return f"<@&{role.id}>"
 
@@ -197,28 +147,10 @@ class Izsak:
             "artist": f"Artist: {item.get('author', 'Unknown')}",
         }
 
-    # TODO: remove these once kaki's messages are fixed
-    async def _get_dm_channel(self, id):
-        user = await self.client.fetch_user(id)
-        return user.dm_channel
-
-    async def _get_all_messages(self, channel):
+    async def _get_all_messages(self, channel, needle):
         msgs = []
-        needle = "https://twitter.com/Margikrap/status/1476025036364464140?s=20&t=7_xqQJOM3anRQc2L3jF7LA"
-        found = False
         if channel:
             async for message in channel.history(oldest_first=True):
-                if message.author != self.client.user:
-                    if "upload" in message.content and "<" in message.content and found:
-                        print(message.content)
-                        msgs.append(message)
-                    if needle in message.content and "<" in message.content:
-                        found = True
+                if message.author != self.client.user and needle in message.content:
+                    msgs.append(message)
         return msgs
-
-    async def process_batch(self, msgs):
-        for msg in msgs:
-            print(f"Processing `{msg.content}`...")
-            await msg.channel.send(f"Processing `{msg.content}`...")
-            await self._parse_args(msg, silent=True)
-            sleep(1)
