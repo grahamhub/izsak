@@ -12,11 +12,8 @@ from constants import (
 from exceptions import NotFound
 from time import sleep
 from utils import (
-    get_unsent_catgirl,
-    get_random_catgirl,
     get_random_by_category,
     media_has_been_sent,
-    parse_invalid_message,
     upload_media,
 )
 
@@ -30,7 +27,7 @@ class Izsak:
             guild_id=os.environ.get("IZSAK_GUILD_ID"),
             can_dm=os.environ.get("IZSAK_CAN_DM"),
     ):
-        self.client = discord.Client()
+        self.client = discord.Bot()
         self.token = discord_token
         self.guild_id = int(guild_id)
         self.can_dm = can_dm.split(",")
@@ -70,60 +67,25 @@ class Izsak:
 
         await channel.send(f"{love_choice}")
 
-    async def catgirl(self, channel, sent_ok=True):
-        catgirl = None
-        attempts = 0
-        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
-            try:
-                catgirl = get_random_catgirl(has_been_sent_ok=sent_ok)
-            except NotFound as e:
-                print(str(e))
-            finally:
-                attempts += 1
-
-        if catgirl:
-            image = catgirl.get('url')
-            if catgirl.get('nsfw'):
-                image = f"<||{image}||>"
-
-            print(f"Sending {image} to {channel.id}...")
-            await channel.send(image)
-            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
-
-            if not sent_ok:
-                media_has_been_sent(id)
-        else:
-            await channel.send(
-                f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}, if this persists ping grotto"
-            )
-
-    async def send_random_catgirl(self):
-        catgirl = None
-        attempts = 0
-        channel = self.auto_send_channel()
-        while not catgirl and attempts < NOT_FOUND_MAX_RETRIES:
-            try:
-                catgirl = get_unsent_catgirl()
-            except NotFound as e:
-                print(str(e))
-            finally:
-                attempts += 1
-
-        if catgirl:
-            image = catgirl.get("url")
-            if catgirl.get("nsfw"):
-                image = f"<||{image}||>"
-
-            print(f"Sending {image} to {channel.id}...")
-            await channel.send(image)
-            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
-            media_has_been_sent(catgirl.get('id'))
-        else:
+    async def send_random_catgirl(self, channel, sent_before=True):
+        catgirl = get_random_by_category("catgirl")
+        if catgirl.get("has_been_sent") and not sent_before:
             await channel.send(
                 (f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}\nThis "
                  f"probably means the database needs to be updated. In the meantime, you can "
                  f"manually run `!izsak catgirl` to get your fix.")
             )
+        else:
+            image = catgirl.get("url")
+            if catgirl.get("nsfw"):
+                image = f"||{image}||"
+
+            print(f"Sending {image} to {channel.id}...")
+            await channel.send(image)
+            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+
+            if not sent_before and not catgirl.get("has_been_sent"):
+                media_has_been_sent(catgirl.get('id'))
 
     # TODO: sanitize input
     async def upload(self, channel, args, silent=False):
@@ -152,7 +114,7 @@ class Izsak:
             elif args[1] == "source":
                 await message.channel.send("https://github.com/grahamhub/izsak")
             elif args[1] == "catgirl":
-                await self.catgirl(message.channel)
+                await self.send_random_catgirl(message.channel)
             elif args[1] == "media":
                 item = self._parse_media(args[2])
                 image = item.get("image", False)
@@ -161,13 +123,6 @@ class Izsak:
                     await message.channel.send(item.get("artist"))
                 else:
                     await message.channel.send(NOT_FOUND_MSG)
-            elif args[1] == "fix":
-                msgs = await self._get_all_messages(message.channel)
-                for i in range(len(msgs)):
-                    fixed = parse_invalid_message(msgs[i].content)
-                    msgs[i].content = fixed
-                print("Processing batch, this may take a few minutes...")
-                await self.process_batch(msgs)
 
     def _get_mentionable_role(self, name):
         guild = self.guild()
@@ -197,28 +152,10 @@ class Izsak:
             "artist": f"Artist: {item.get('author', 'Unknown')}",
         }
 
-    # TODO: remove these once kaki's messages are fixed
-    async def _get_dm_channel(self, id):
-        user = await self.client.fetch_user(id)
-        return user.dm_channel
-
-    async def _get_all_messages(self, channel):
+    async def _get_all_messages(self, channel, needle):
         msgs = []
-        needle = "https://twitter.com/Margikrap/status/1476025036364464140?s=20&t=7_xqQJOM3anRQc2L3jF7LA"
-        found = False
         if channel:
             async for message in channel.history(oldest_first=True):
-                if message.author != self.client.user:
-                    if "upload" in message.content and "<" in message.content and found:
-                        print(message.content)
-                        msgs.append(message)
-                    if needle in message.content and "<" in message.content:
-                        found = True
+                if message.author != self.client.user and needle in message.content:
+                    msgs.append(message)
         return msgs
-
-    async def process_batch(self, msgs):
-        for msg in msgs:
-            print(f"Processing `{msg.content}`...")
-            await msg.channel.send(f"Processing `{msg.content}`...")
-            await self._parse_args(msg, silent=True)
-            sleep(1)
