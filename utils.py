@@ -26,11 +26,17 @@ class UploadModal(ui.Modal):
         )
 
 
-def get_random_by_category(category):
+def get_random_by_category(category, filter_key=None, filter_val=None):
     item = None
     with connection() as postgres:
         items = postgres.get_all_by_attr("media", "category", category)
-        item = choice(items)
+        if filter_key:
+            items = filter_db_row(items, filter_key, filter_val)
+
+        try:
+            item = choice(items)
+        except IndexError:
+            pass
 
     return item
 
@@ -61,3 +67,15 @@ def can_upload(ctx):
     upload_users = os.environ.get("IZSAK_CAN_UPLOAD", "").split(",")
     upload_users = list(map(lambda id: int(id), upload_users))
     return ctx.user.id in upload_users
+
+
+def filter_db_row(row, key, val=None):
+    filtered_items = []
+    for item in row:
+        needle = item.get(key, False)
+        if needle and needle == val:
+            filtered_items.append(item)
+        elif needle and not val:
+            filtered_items.append(item)
+
+    return filtered_items

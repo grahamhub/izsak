@@ -9,6 +9,7 @@ from constants import (
 )
 from discord import ApplicationContext
 from utils import (
+    filter_db_row,
     get_random_by_category,
     media_has_been_sent,
     upload_media,
@@ -82,23 +83,33 @@ class Izsak:
 
     async def send_random_catgirl(self, ctx: ApplicationContext, sent_before=True):
         catgirl = get_random_by_category("catgirl")
-        if catgirl.get("has_been_sent") and not sent_before:
-            await ctx.respond(
+        image = catgirl.get("url")
+        if catgirl.get("nsfw"):
+            image = f"||{image}||"
+
+        print(f"Sending {image} to {ctx.channel.id}...")
+        await ctx.respond(image)
+        await ctx.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+
+    async def send_scheduled_catgirl(self):
+        catgirl = get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
+        channel = self.auto_send_channel()
+        if not catgirl:
+            await channel.send(
                 (f"Oh no! I couldn't find a catgirl {self._get_emoji('pensivecowboy')}\nThis "
                  f"probably means the database needs to be updated. In the meantime, you can "
-                 f"manually run `!izsak catgirl` to get your fix.")
+                 f"manually run `/catgirl` to get your fix.")
             )
         else:
             image = catgirl.get("url")
             if catgirl.get("nsfw"):
                 image = f"||{image}||"
 
-            print(f"Sending {image} to {ctx.channel.id}...")
-            await ctx.respond(image)
-            await ctx.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+            print(f"Sending {image} to {channel.id}...")
+            await channel.send(image)
+            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
 
-            if not sent_before and not catgirl.get("has_been_sent"):
-                media_has_been_sent(catgirl.get('id'))
+            media_has_been_sent(catgirl.get('id'))
 
     async def send_media_by_category(self, ctx: ApplicationContext, category):
         item = self._parse_media(category)

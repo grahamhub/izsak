@@ -60,10 +60,10 @@ async def wtf(ctx, role):
 @tasks.loop(hours=12)
 async def send_random_catgirl():
     try:
-        await izsak.send_random_catgirl()
+        await izsak.send_scheduled_catgirl()
     except AttributeError as e:
         print(str(e))
 
+izsak.start()
 if environment == "PROD":
     send_random_catgirl.start()
-izsak.start()
