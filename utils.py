@@ -10,6 +10,7 @@ from discord import (
 from itertools import chain
 from postgres import connection
 from random import choice
+from twitter import Twitter
 
 
 class UploadModal(ui.Modal):
@@ -47,15 +48,27 @@ class ResponseEmbed:
 
         author = kwargs.get("author")
         if author:
-            embed.set_author(name=author)
+            embed.set_author(name=author, url=kwargs.get("url"))
 
-        embed.set_image(url=kwargs.get("url"))
+        url = filter_embed_url(kwargs.get("url"))
+
+        embed.set_image(url=url)
         embed.set_footer(
             text=kwargs.get("footer_text"),
             icon_url=kwargs.get("footer_icon_url"),
         )
         self.embed = embed
 
+
+def filter_embed_url(url):
+    twt = Twitter()
+    # TODO: other platforms
+    if "twitter" in url:
+        twt_media = twt.get_tweet_media(Twitter.parse_id_from_url(url))
+        if len(twt_media) >= 1:
+            return twt_media[0].get("url")
+
+    return url
 
 def get_random_by_category(category, filter_key=None, filter_val=None):
     item = None
