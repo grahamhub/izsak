@@ -3,6 +3,7 @@ import os
 import psycopg2
 
 from exceptions import NotFound
+from itertools import chain
 
 
 class MediaTable:
@@ -17,6 +18,17 @@ class MediaTable:
             "has_been_sent",
             "submitted_by",
             "submitted_on",
+        ]
+
+
+class CategoryTable:
+    @staticmethod
+    def get_columns():
+        return [
+            "id",
+            "name",
+            "created_by",
+            "created_on",
         ]
 
 
@@ -40,6 +52,8 @@ class Postgres:
     def _table_cols_lookup(self, table):
         if table == "media":
             return MediaTable.get_columns()
+        elif table == "category":
+            return CategoryTable.get_columns()
 
     def _execute(self, cmd, data=[], commit=True):
         self.cur.execute(cmd, data)
@@ -95,10 +109,17 @@ class Postgres:
         self._execute(stmt)
         return self._fetchone()
 
+    def _format_insert(self, vals):
+        formatted_rows = []
+        for row in vals:
+            row = ', '.join(list(map(lambda x: '%s', row)))
+            formatted_rows.append(f"({row})")
+        return formatted_rows
+
     def insert(self, table, cols, vals):
-        formatters = ', '.join(list(map(lambda x: '%s', vals)))
-        stmt = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({formatters});"
-        self._execute(stmt, vals)
+        formatters = ', '.join(self._format_insert(vals))
+        stmt = f"INSERT INTO {table} ({', '.join(cols)}) VALUES {formatters};"
+        self._execute(stmt, list(chain(*vals)))
         return self._fetchone()
 
     def update_field(self, table, field_name, new_val, id):
@@ -143,6 +164,33 @@ class Postgres:
         items = self._fetchall()
         if items is None:
             raise NotFound(f"no items matching {attr} = {val}")
+
+        return [
+            self._create_dict(
+                self._table_cols_lookup(table),
+                item,
+            ) for item in items
+        ]
+
+    def get_all_by_category(self, category):
+        stmt = "SELECT * FROM mediaV2 WHERE %s = ANY (category);"
+        self._execute(stmt, [category])
+        items = self._fetchall()
+        if items is None:
+            raise NotFound(f"no items in category {category}")
+
+        return [
+            self._create_dict(
+                self._table_cols_lookup("media"),
+                item,
+            ) for item in items
+        ]
+
+    def get_all(self, table):
+        self._execute(f"SELECT * FROM {table};")
+        items = self._fetchall()
+        if items is None:
+            raise NotFound(f"no items in {table}")
 
         return [
             self._create_dict(

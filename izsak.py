@@ -9,9 +9,9 @@ from constants import (
 )
 from discord import ApplicationContext
 from utils import (
-    filter_db_row,
     get_random_by_category,
     media_has_been_sent,
+    ResponseEmbed,
     upload_media,
     UploadModal,
 )
@@ -41,13 +41,14 @@ class Izsak:
     # TODO: sanitize input
     @staticmethod
     async def upload(interaction: discord.Interaction, *args):
+
         try:
             upload_media(
                 url=args[0],
                 author=args[1],
-                category=args[2],
+                category=args[2].split(","),
                 nsfw=args[3],
-                submitted_by=interaction.user.name,
+                submitted_by=str(interaction.user.id),
             )
             await interaction.response.send_message(
                 content="Upload successful!",
@@ -82,7 +83,7 @@ class Izsak:
         if love_choice[0] == ":":
             try:
                 love_choice = self._get_emoji(love_choice.replace(":", ""))
-            except AttributeError as e:
+            except AttributeError:
                 love_choice = "tch.."
 
         await ctx.respond(f"{love_choice}")
@@ -92,10 +93,16 @@ class Izsak:
         image = catgirl.get("url")
         if catgirl.get("nsfw"):
             image = f"||{image}||"
-
+        user = await self.get_user_metadata(int(catgirl.get("submitted_by")))
         print(f"Sending {image} to {ctx.channel.id}...")
-        await ctx.respond(image)
-        await ctx.send(f"Artist: {catgirl.get('author', 'Unknown')}")
+        embed = ResponseEmbed(
+            embed_title="random catgirl attack!",
+            author=catgirl.get("author"),
+            url=image,
+            footer_text=f"{user.get('name')} on {catgirl.get('submitted_on').strftime('%m-%d-%Y')}",
+            footer_icon_url=user.get("icon_url"),
+        ).embed
+        await ctx.send_response(embeds=[embed])
 
     async def send_scheduled_catgirl(self):
         catgirl = get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
@@ -125,6 +132,13 @@ class Izsak:
             await ctx.send(item.get("artist"))
         else:
             await ctx.respond(NOT_FOUND_MSG)
+
+    async def get_user_metadata(self, id):
+        user = await self.guild().fetch_member(id)
+        return {
+            "icon_url": user.display_avatar.url,
+            "name": user.display_name,
+        }
 
     def _get_mentionable_role(self, name):
         guild = self.guild()

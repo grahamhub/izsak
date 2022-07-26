@@ -3,7 +3,7 @@ import os
 
 from discord.ext import tasks
 from izsak import Izsak
-from utils import can_upload
+from utils import can_upload, migrate_media_v2
 
 logging.basicConfig(level=logging.INFO)
 environment = os.environ.get("IZSAK_ENV")
@@ -15,6 +15,8 @@ client = izsak.client
 @client.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
+    print("Starting migration...")
+    # migrate_media_v2()
 
 
 @client.slash_command(
