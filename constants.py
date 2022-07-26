@@ -28,3 +28,5 @@ NOT_FOUND_MAX_RETRIES = 5
 NOT_FOUND_MSG = "Sorry, I couldn't find a media item for that category."
 
 AUTO_SEND_CHANNEL = int(os.environ.get("IZSAK_AUTO_SEND_CHANNEL", "-1"))
+
+TUMBLR_LINK_RE = "https://64\\.media\\.tumblr\\.com/.{1,}\\.(gif|png|jpg|webp|webm)"

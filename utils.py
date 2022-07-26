@@ -2,7 +2,9 @@ import discord
 
 import izsak
 import os
+import re
 
+from constants import TUMBLR_LINK_RE
 from discord import (
     ui,
     Interaction,
@@ -10,6 +12,7 @@ from discord import (
 from itertools import chain
 from postgres import connection
 from random import choice
+from tumblr import Tumblr
 from twitter import Twitter
 
 
@@ -46,11 +49,10 @@ class ResponseEmbed:
         embed = discord.Embed()
         embed.title = kwargs.get("embed_title")
 
+        url, avatar = filter_embed_url(kwargs.get("url"))
         author = kwargs.get("author")
         if author:
-            embed.set_author(name=author, url=kwargs.get("url"))
-
-        url = filter_embed_url(kwargs.get("url"))
+            embed.set_author(name=author, url=kwargs.get("url"), icon_url=avatar)
 
         embed.set_image(url=url)
         embed.set_footer(
@@ -62,13 +64,23 @@ class ResponseEmbed:
 
 def filter_embed_url(url):
     twt = Twitter()
-    # TODO: other platforms
+    tblr = Tumblr()
+    # TODO: other platforms / media formats
     if "twitter" in url:
         twt_media = twt.get_tweet_media(Twitter.parse_id_from_url(url))
         if len(twt_media) >= 1:
             return twt_media[0].get("url")
+    elif "tumblr" in url:
+        tblr_post = tblr.get_post_info(url)
+        raw_post = tblr_post.get("posts", [{}])[0].get("body", "")
+        link = re.search(TUMBLR_LINK_RE, raw_post)
+
+        tblr_blog = tblr.get_blog_info(url)
+        avatar = tblr_blog.get("blog", {}).get("avatar", [{}])[0]
+        return link[0], avatar.get("url")
 
     return url
+
 
 def get_random_by_category(category, filter_key=None, filter_val=None):
     item = None
@@ -90,7 +102,7 @@ def upload_media(**kwargs):
         postgres.insert(
             "mediaV2",
             list(kwargs.keys()),
-            list(kwargs.values()),
+            [list(kwargs.values())],
         )
 
 
@@ -136,6 +148,7 @@ def migrate_media_v2():
         values = []
         categories = {}
         for item in media_v1:
+            del item["id"]
             item_v2 = item
             cat = item.get("category")
             item_v2["category"] = [cat]
