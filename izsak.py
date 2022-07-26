@@ -49,9 +49,15 @@ class Izsak:
                 nsfw=args[3],
                 submitted_by=interaction.user.name,
             )
-            await interaction.response.send_message("Upload successful!")
+            await interaction.response.send_message(
+                content="Upload successful!",
+                ephemeral=True,
+            )
         except Exception as e:
-            await interaction.response.send_message(f"Exception occurred: `{str(e)}`")
+            await interaction.response.send_message(
+                content=f"Exception occurred: `{str(e)}`",
+                ephemeral=True,
+            )
 
     def start(self):
         self.client.run(self.token)
@@ -81,7 +87,7 @@ class Izsak:
 
         await ctx.respond(f"{love_choice}")
 
-    async def send_random_catgirl(self, ctx: ApplicationContext, sent_before=True):
+    async def send_random_catgirl(self, ctx: ApplicationContext):
         catgirl = get_random_by_category("catgirl")
         image = catgirl.get("url")
         if catgirl.get("nsfw"):
