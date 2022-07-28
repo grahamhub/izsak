@@ -125,7 +125,10 @@ class Izsak:
     async def send_media_by_category(self, ctx: ApplicationContext, category):
         embed = await self._parse_media(category)
         if embed:
-            await ctx.respond(embeds=[embed])
+            if isinstance(embed, views.ResponseEmbed):
+                await ctx.respond(embeds=[embed])
+            else:
+                await ctx.respond(embed)
         else:
             await ctx.respond(NOT_FOUND_MSG)
 
