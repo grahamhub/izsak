@@ -172,7 +172,7 @@ def migrate_media_v2():
             cat = item.get("category")
             item_v2["category"] = [cat]
             name = item.get("submitted_by")
-            can_upload = os.environ.get("IZSAK_CAN_DM").split(",")
+            can_upload = os.environ.get("IZSAK_CAN_UPLOAD").split(",")
             if name == "grotto":
                 name = can_upload[0]
             else:
