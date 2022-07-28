@@ -8,13 +8,8 @@ from constants import (
     NOT_FOUND_MSG,
 )
 from discord import ApplicationContext
-from utils import (
-    get_random_by_category,
-    media_has_been_sent,
-    ResponseEmbed,
-    upload_media,
-    UploadModal,
-)
+from clients.postgres import Postgres
+from views import views
 
 
 class Izsak:
@@ -35,7 +30,7 @@ class Izsak:
 
     @staticmethod
     async def upload_modal(ctx: ApplicationContext):
-        modal = UploadModal(title="Upload a new media item")
+        modal = views.UploadModal(title="Upload a new media item")
         await ctx.send_modal(modal)
 
     # TODO: sanitize input
@@ -43,7 +38,7 @@ class Izsak:
     async def upload(interaction: discord.Interaction, *args):
 
         try:
-            upload_media(
+            Postgres.upload_media(
                 url=args[0],
                 author=args[1],
                 category=args[2].split(","),
@@ -89,13 +84,13 @@ class Izsak:
         await ctx.respond(f"{love_choice}")
 
     async def send_random_catgirl(self, ctx: ApplicationContext):
-        catgirl = get_random_by_category("catgirl")
+        catgirl = Postgres.get_random_by_category("catgirl")
         image = catgirl.get("url")
         if catgirl.get("nsfw"):
             image = f"||{image}||"
         user = await self.get_user_metadata(int(catgirl.get("submitted_by")))
         print(f"Sending {image} to {ctx.channel.id}...")
-        embed = ResponseEmbed(
+        embed = views.ResponseEmbed(
             embed_title="random catgirl attack!",
             author=catgirl.get("author"),
             url=image,
@@ -105,7 +100,7 @@ class Izsak:
         await ctx.send_response(embeds=[embed])
 
     async def send_scheduled_catgirl(self):
-        catgirl = get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
+        catgirl = Postgres.get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
         channel = self.auto_send_channel()
         if not catgirl:
             await channel.send(
@@ -122,7 +117,7 @@ class Izsak:
             await channel.send(image)
             await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
 
-            media_has_been_sent(catgirl.get('id'))
+            Postgres.media_has_been_sent(catgirl.get('id'))
 
     async def send_media_by_category(self, ctx: ApplicationContext, category):
         item = self._parse_media(category)
@@ -153,7 +148,7 @@ class Izsak:
         return f"<:{name}:{emoji.id}>"
 
     def _parse_media(self, category):
-        item = get_random_by_category(category)
+        item = Postgres.get_random_by_category(category)
         if item is None:
             return {}
 

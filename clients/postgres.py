@@ -4,6 +4,7 @@ import psycopg2
 
 from exceptions import NotFound
 from itertools import chain
+from random import choice
 
 
 class MediaTable:
@@ -198,6 +199,55 @@ class Postgres:
                 item,
             ) for item in items
         ]
+
+    @staticmethod
+    def upload_media(**kwargs):
+        with connection() as postgres:
+            postgres.insert(
+                "mediaV2",
+                list(kwargs.keys()),
+                [list(kwargs.values())],
+            )
+
+    @staticmethod
+    def media_has_been_sent(id):
+        with connection() as postgres:
+            postgres.update_field("mediaV2", "has_been_sent", True, id)
+
+    @staticmethod
+    def get_by_id(id):
+        item = None
+        with connection() as postgres:
+            item = postgres.get_by_id("mediaV2", id)
+
+        return item
+
+    @staticmethod
+    def get_random_by_category(category, filter_key=None, filter_val=None):
+        item = None
+        with connection() as postgres:
+            items = postgres.get_all_by_category(category)
+            if filter_key:
+                items = Postgres.filter_db_row(items, filter_key, filter_val)
+
+            try:
+                item = choice(items)
+            except IndexError:
+                pass
+
+        return item
+
+    @staticmethod
+    def filter_db_row(row, key, val=None):
+        filtered_items = []
+        for item in row:
+            needle = item.get(key, False)
+            if needle and needle == val:
+                filtered_items.append(item)
+            elif needle and not val:
+                filtered_items.append(item)
+
+        return filtered_items
 
 
 @contextlib.contextmanager
