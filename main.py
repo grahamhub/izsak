@@ -16,7 +16,7 @@ client = izsak.client
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
     print("Starting migration...")
-    # migrate_media_v2()
+    migrate_media_v2()
 
 
 @client.slash_command(

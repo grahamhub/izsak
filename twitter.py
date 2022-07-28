@@ -38,3 +38,8 @@ class Twitter:
         resp = self._build_request(endpoint)
         return resp.get("includes", {}).get("media", [])
 
+    def get_user_pfp(self, user_id):
+        endpoint = f"users/{user_id}?user.fields=profile_image_url"
+        resp = self._build_request(endpoint)
+        return resp.get("data", {}).get("profile_image_url")
+

@@ -9,6 +9,7 @@ from discord import (
     ui,
     Interaction,
 )
+from functools import lru_cache
 from itertools import chain
 from postgres import connection
 from random import choice
@@ -52,6 +53,9 @@ class ResponseEmbed:
         url, avatar = filter_embed_url(kwargs.get("url"))
         author = kwargs.get("author")
         if author:
+            embed.set_author(name=author, url=kwargs.get("url"))
+
+        if avatar and "http" in avatar:
             embed.set_author(name=author, url=kwargs.get("url"), icon_url=avatar)
 
         embed.set_image(url=url)
@@ -62,14 +66,19 @@ class ResponseEmbed:
         self.embed = embed
 
 
+@lru_cache(maxsize=128)
 def filter_embed_url(url):
+    print(f"getting info for {url}")
     twt = Twitter()
     tblr = Tumblr()
     # TODO: other platforms / media formats
     if "twitter" in url:
         twt_media = twt.get_tweet_media(Twitter.parse_id_from_url(url))
         if len(twt_media) >= 1:
-            return twt_media[0].get("url")
+            twt_tweet = twt.get_tweet(Twitter.parse_id_from_url(url))
+            user_id = twt_tweet[0].get("author_id")
+            user_pfp = twt.get_user_pfp(user_id)
+            return twt_media[0].get("url"), user_pfp
     elif "tumblr" in url:
         tblr_post = tblr.get_post_info(url)
         raw_post = tblr_post.get("posts", [{}])[0].get("body", "")
@@ -77,9 +86,19 @@ def filter_embed_url(url):
 
         tblr_blog = tblr.get_blog_info(url)
         avatar = tblr_blog.get("blog", {}).get("avatar", [{}])[0]
-        return link[0], avatar.get("url")
 
-    return url
+        if link is None:
+            link = tblr_post\
+                .get("posts", [{}])[0]\
+                .get("photos", [{}])[0]\
+                .get("original_size", {})\
+                .get("url")
+        else:
+            link = link[0]
+
+        return link, avatar.get("url")
+
+    return url, None
 
 
 def get_random_by_category(category, filter_key=None, filter_val=None):
