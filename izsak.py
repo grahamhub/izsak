@@ -155,6 +155,9 @@ class Izsak:
 
         image = item.get("url")
 
+        if "vxtwitter" in image or ".mp4" in image:
+            return image
+
         user = await self.get_user_metadata(int(item.get("submitted_by")))
         embed = views.ResponseEmbed(
             embed_title=f"random {category} attack!",
