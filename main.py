@@ -17,10 +17,7 @@ with connection() as postgres:
 
 
 async def media(ctx):
-    if ctx.command.name == "catgirl":
-        await izsak.send_random_catgirl(ctx)
-    else:
-        await izsak.send_media_by_category(ctx, ctx.command.name)
+    await izsak.send_media_by_category(ctx, ctx.command.name)
 
 for cat in categories:
     print(cat)
