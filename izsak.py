@@ -64,6 +64,9 @@ class Izsak:
     def auto_send_channel(self):
         return self.guild().get_channel(AUTO_SEND_CHANNEL)
 
+    async def send_ephemeral(self, ctx, content):
+        await ctx.respond(content=content, ephemeral=True)
+
     async def wtf(self, ctx: ApplicationContext, role):
         wtf_msgs = MESSAGES.get("wtf")
         role = self._get_mentionable_role(role)
@@ -120,11 +123,9 @@ class Izsak:
             Postgres.media_has_been_sent(catgirl.get('id'))
 
     async def send_media_by_category(self, ctx: ApplicationContext, category):
-        item = self._parse_media(category)
-        image = item.get("image", False)
-        if image:
-            await ctx.respond(image)
-            await ctx.send(item.get("artist"))
+        embed = await self._parse_media(category)
+        if embed:
+            await ctx.respond(embeds=[embed])
         else:
             await ctx.respond(NOT_FOUND_MSG)
 
@@ -147,20 +148,22 @@ class Izsak:
         emoji = discord.utils.get(self.guild().emojis, name=name)
         return f"<:{name}:{emoji.id}>"
 
-    def _parse_media(self, category):
+    async def _parse_media(self, category):
         item = Postgres.get_random_by_category(category)
         if item is None:
-            return {}
+            return None
 
         image = item.get("url")
 
-        if item.get("nsfw"):
-            image = f"||{image}||"
-
-        return {
-            "image": image,
-            "artist": f"Artist: {item.get('author', 'Unknown')}",
-        }
+        user = await self.get_user_metadata(int(item.get("submitted_by")))
+        embed = views.ResponseEmbed(
+            embed_title=f"random {category} attack!",
+            author=item.get("author"),
+            url=image,
+            footer_text=f"{user.get('name')} on {item.get('submitted_on').strftime('%m-%d-%Y')}",
+            footer_icon_url=user.get("icon_url"),
+        ).embed
+        return embed
 
     async def _get_all_messages(self, channel, needle):
         msgs = []
