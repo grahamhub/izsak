@@ -38,7 +38,6 @@ class UploadModal(ui.Modal):
 class ResponseEmbed:
     def __init__(self, **kwargs):
         embed = Embed()
-        embed.title = kwargs.get("embed_title")
 
         url, avatar = filter_embed_url(kwargs.get("url"))
         author = kwargs.get("author")

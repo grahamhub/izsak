@@ -10,6 +10,7 @@ from constants import (
 from discord import ApplicationContext
 from clients.postgres import Postgres
 from views import views
+from functools import lru_cache
 
 
 class Izsak:
@@ -25,10 +26,6 @@ class Izsak:
         self.can_upload = can_upload.split(",")
 
     @staticmethod
-    async def forbidden(ctx: ApplicationContext):
-        await ctx.respond("You are not allowed to execute this command.")
-
-    @staticmethod
     async def upload_modal(ctx: ApplicationContext):
         modal = views.UploadModal(title="Upload a new media item")
         await ctx.send_modal(modal)
@@ -36,7 +33,6 @@ class Izsak:
     # TODO: sanitize input
     @staticmethod
     async def upload(interaction: discord.Interaction, *args):
-
         try:
             Postgres.upload_media(
                 url=args[0],
@@ -64,6 +60,9 @@ class Izsak:
     def auto_send_channel(self):
         return self.guild().get_channel(AUTO_SEND_CHANNEL)
 
+    async def forbidden(self, ctx: ApplicationContext):
+        await self.send_ephemeral(ctx, "You are not allowed to execute this command.")
+
     async def send_ephemeral(self, ctx, content):
         await ctx.respond(content=content, ephemeral=True)
 
@@ -86,22 +85,6 @@ class Izsak:
 
         await ctx.respond(f"{love_choice}")
 
-    async def send_random_catgirl(self, ctx: ApplicationContext):
-        catgirl = Postgres.get_random_by_category("catgirl")
-        image = catgirl.get("url")
-        if catgirl.get("nsfw"):
-            image = f"||{image}||"
-        user = await self.get_user_metadata(int(catgirl.get("submitted_by")))
-        print(f"Sending {image} to {ctx.channel.id}...")
-        embed = views.ResponseEmbed(
-            embed_title="random catgirl attack!",
-            author=catgirl.get("author"),
-            url=image,
-            footer_text=f"{user.get('name')} on {catgirl.get('submitted_on').strftime('%m-%d-%Y')}",
-            footer_icon_url=user.get("icon_url"),
-        ).embed
-        await ctx.send_response(embeds=[embed])
-
     async def send_scheduled_catgirl(self):
         catgirl = Postgres.get_random_by_category("catgirl", filter_key="has_been_sent", filter_val=False)
         channel = self.auto_send_channel()
@@ -112,26 +95,26 @@ class Izsak:
                  f"manually run `/catgirl` to get your fix.")
             )
         else:
-            image = catgirl.get("url")
-            if catgirl.get("nsfw"):
-                image = f"||{image}||"
-
-            print(f"Sending {image} to {channel.id}...")
-            await channel.send(image)
-            await channel.send(f"Artist: {catgirl.get('author', 'Unknown')}")
-
+            user = await self.get_user_metadata(int(catgirl.get("submitted_by")))
+            embed = views.ResponseEmbed(
+                author=catgirl.get("author"),
+                url=catgirl.get("url"),
+                footer_text=f"{user.get('name')} on {catgirl.get('submitted_on').strftime('%m-%d-%Y')}",
+                footer_icon_url=user.get("icon_url"),
+            ).embed
+            await channel.send(embeds=[embed])
             Postgres.media_has_been_sent(catgirl.get('id'))
 
     async def send_media_by_category(self, ctx: ApplicationContext, category):
-        embed = await self._parse_media(category)
-        if embed:
-            if isinstance(embed, views.ResponseEmbed):
-                await ctx.respond(embeds=[embed])
-            else:
-                await ctx.respond(embed)
+        media = await self._parse_media(category)
+        if isinstance(media, discord.Embed):
+            await ctx.respond(embeds=[media])
+        elif media:
+            await ctx.respond(media)
         else:
             await ctx.respond(NOT_FOUND_MSG)
 
+    @lru_cache(maxsize=4)
     async def get_user_metadata(self, id):
         user = await self.guild().fetch_member(id)
         return {
@@ -163,7 +146,6 @@ class Izsak:
 
         user = await self.get_user_metadata(int(item.get("submitted_by")))
         embed = views.ResponseEmbed(
-            embed_title=f"random {category} attack!",
             author=item.get("author"),
             url=image,
             footer_text=f"{user.get('name')} on {item.get('submitted_on').strftime('%m-%d-%Y')}",

@@ -71,8 +71,8 @@ async def get_categories(ctx):
     await izsak.send_ephemeral(ctx, msg)
 
 
-@tasks.loop(hours=12)
-async def send_random_catgirl():
+@tasks.loop(hours=6)
+async def send_scheduled_catgirl():
     try:
         await izsak.send_scheduled_catgirl()
     except AttributeError as e:
@@ -80,4 +80,4 @@ async def send_random_catgirl():
 
 izsak.start()
 if environment == "PROD":
-    send_random_catgirl.start()
+    send_scheduled_catgirl.start()
