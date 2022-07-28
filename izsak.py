@@ -10,7 +10,6 @@ from constants import (
 from discord import ApplicationContext
 from clients.postgres import Postgres
 from views import views
-from functools import lru_cache
 
 
 class Izsak:
@@ -114,7 +113,6 @@ class Izsak:
         else:
             await ctx.respond(NOT_FOUND_MSG)
 
-    @lru_cache(maxsize=4)
     async def get_user_metadata(self, id):
         user = await self.guild().fetch_member(id)
         return {
